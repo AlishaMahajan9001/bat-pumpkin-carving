@@ -1,0 +1,5 @@
+repositories:
+  pumpkin_carving:
+      type: git
+      url: https://github.com/SamanthaSmith04/pumpkin_carving.git
+      version: f1287f84a5d63bb2617fc62daff57ac616faf3b7
