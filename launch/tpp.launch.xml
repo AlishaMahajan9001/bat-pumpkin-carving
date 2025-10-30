@@ -1,0 +1,3 @@
+<launch>
+    <node pkg="cpp_path_planner" exec="client"/>
+</launch>
