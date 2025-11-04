@@ -43,23 +43,27 @@ public:
         request_ = std::make_shared<pumpkin_msgs::srv::PlanMotion::Request>();
 
         // Set Path Parameters
-        tooling_length_ = 0.015875;        // depth of cut into pumpkin
-        tooling_radius_ = 0.00635;
-        moon_y_axis_start_ = -0.02;
-        moon_y_axis_end_ = 0.02;
-        b_1_const_ = -0.02;             // some constant to define moon part 1
-        b_2_const_ = -0.005;             // some constant to define moon part 2
-        moon_radius_const_ = 0.02;      // radius of moon
-        star_x_line_ = 0.015;            // x axis position
-        star_x_axis_start_ = 0.01;
-        star_x_axis_finish_ = 0.02; 
-        star_y_axis_start_ = 0.005; // y axis start
-        star_y_axis_end_ = -0.005;  // y axis end
+        tooling_length_ = 0.025;        // depth of cut into pumpkin
+        tooling_radius_ = 0.007;
+        pumpkin_radius_ = 0.05;          // pumpkin radius
 
+        moon_y_offset_ = 0.01;
+        moon_x_axis_left_ = -0.06;
+        moon_x_axis_right_ = 0.06;
+        b_1_const_ = -0.06;             // some constant to define moon part 1
+        moon_radius_const_ = 0.06;      // radius of moon
+        
+        bat_y1_ = 0.03;
+        bat_x1_ = 0.035;
+        bat_y2_ = 0.01;
+        bat_x2_ = 0.01;
+        bat_y3_ = 0.025;
+        bat_y4_ = 0.02;
+        
 
         // Define Output YAML Filename
-        output_toolpath_yaml_filename = "toolpath_moon_and_star.yaml";
-        output_trajectory_yaml_filename = "trajectory_moon_and_star.yaml";
+        output_toolpath_yaml_filename = "toolpath_bat.yaml";
+        output_trajectory_yaml_filename = "trajectory_bat.yaml";
         
         // Report Setup
         RCLCPP_INFO(this->get_logger(), "Node Setup Complete!");
@@ -68,195 +72,243 @@ public:
     /*
     * Generate Moon Path
     * */
-    bool makeMoonPath()
+    bool makeTopPath()
     {
         // Setup moon segment pose array
-        auto moon_segment = geometry_msgs::msg::PoseArray();
+        auto top_segment = geometry_msgs::msg::PoseArray();
 
         // Stuff Header
-        moon_segment.header.frame_id = "pumpkin_face";
-        moon_segment.header.stamp = this->now();
+        top_segment.header.frame_id = "pumpkin_face";
+        top_segment.header.stamp = this->now();
         
         // Pose #1 - Appraoch pumkin
         geometry_msgs::msg::Pose approach_moon;
-        approach_moon.position.x = 0.0;
-        approach_moon.position.y = moon_y_axis_start_;
+        approach_moon.position.x = moon_x_axis_left_;
+        approach_moon.position.y = moon_y_offset_;
         approach_moon.position.z = 0.0;
         approach_moon.orientation.x = 0.0;
         approach_moon.orientation.y = 0.0;
         approach_moon.orientation.z = 0.0;
         approach_moon.orientation.w = 1.0;
-        moon_segment.poses.push_back(approach_moon);
+        top_segment.poses.push_back(approach_moon);
         
         // Pose #2 - Cut into pumkin
         geometry_msgs::msg::Pose cut_moon;
-        cut_moon.position.x = 0.0;
-        cut_moon.position.y = moon_y_axis_start_;
+        cut_moon.position.x = moon_x_axis_left_;
+        cut_moon.position.y = moon_y_offset_;
         cut_moon.position.z = tooling_length_;
         cut_moon.orientation.x = 0.0;
         cut_moon.orientation.y = 0.0;
         cut_moon.orientation.z = 0.0;
         cut_moon.orientation.w = 1.0;
-        moon_segment.poses.push_back(cut_moon);
+        top_segment.poses.push_back(cut_moon);
 
         // Pose loop #3: cut moon part 1
-        for (double i = moon_y_axis_start_; i <= moon_y_axis_end_; i += tooling_radius_/2)
+        for (double i = moon_x_axis_left_; i <= moon_x_axis_right_; i += tooling_radius_/2)
         {
             geometry_msgs::msg::Pose moon_part1;
-            moon_part1.position.x = (b_1_const_ * sqrt(pow(moon_radius_const_, 2) - pow(i, 2))) / moon_radius_const_;
-            moon_part1.position.y = i;
+            moon_part1.position.x = i;
+            moon_part1.position.y = (b_1_const_ * sqrt(pow(moon_radius_const_, 2) - pow(i, 2))) / moon_radius_const_;
             moon_part1.position.z = tooling_length_;
             moon_part1.orientation.x = 0.0;
             moon_part1.orientation.y = 0.0;
             moon_part1.orientation.z = 0.0;
             moon_part1.orientation.w = 1.0;
-            moon_segment.poses.push_back(moon_part1);
+            top_segment.poses.push_back(moon_part1);
         }
+        
+        // right side of bat
+        geometry_msgs::msg::Pose bat_R_part1;
+        bat_R_part1.position.x = bat_x1_;
+        bat_R_part1.position.y = bat_y1_;
+        bat_R_part1.position.z = tooling_length_;
+        bat_R_part1.orientation.x = 0.0;
+        bat_R_part1.orientation.y = 0.0;
+        bat_R_part1.orientation.z = 0.0;
+        bat_R_part1.orientation.w = 1.0;
+        top_segment.poses.push_back(bat_R_part1);
 
-        // Pose loop #4 - cut moon part 2
-        for (double i = moon_y_axis_end_; i >= moon_y_axis_start_; i -= tooling_radius_/2)
-        {
-            geometry_msgs::msg::Pose moon_part2;
-            moon_part2.position.x = (b_2_const_ * sqrt(pow(moon_radius_const_, 2) - pow(i, 2))) / moon_radius_const_;
-            moon_part2.position.y = i;
-            moon_part2.position.z = tooling_length_;
-            moon_part2.orientation.x = 0.0;
-            moon_part2.orientation.y = 0.0;
-            moon_part2.orientation.z = 0.0;
-            moon_part2.orientation.w = 1.0;
-            moon_segment.poses.push_back(moon_part2);
-        }
+        geometry_msgs::msg::Pose bat_R_part2;
+        bat_R_part2.position.x = bat_x2_;
+        bat_R_part2.position.y = bat_y2_;
+        bat_R_part2.position.z = tooling_length_;
+        bat_R_part2.orientation.x = 0.0;
+        bat_R_part2.orientation.y = 0.0;
+        bat_R_part2.orientation.z = 0.0;
+        bat_R_part2.orientation.w = 1.0;
+        top_segment.poses.push_back(bat_R_part2);
+
+        geometry_msgs::msg::Pose bat_R_part3;
+        bat_R_part3.position.x = bat_x2_;
+        bat_R_part3.position.y = bat_y3_;
+        bat_R_part3.position.z = tooling_length_;
+        bat_R_part3.orientation.x = 0.0;
+        bat_R_part3.orientation.y = 0.0;
+        bat_R_part3.orientation.z = 0.0;
+        bat_R_part3.orientation.w = 1.0;
+        top_segment.poses.push_back(bat_R_part3);
+
+        geometry_msgs::msg::Pose bat_R_part4;
+        bat_R_part4.position.x = 0.0;
+        bat_R_part4.position.y = bat_y4_;
+        bat_R_part4.position.z = tooling_length_;
+        bat_R_part4.orientation.x = 0.0;
+        bat_R_part4.orientation.y = 0.0;
+        bat_R_part4.orientation.z = 0.0;
+        bat_R_part4.orientation.w = 1.0;
+        top_segment.poses.push_back(bat_R_part4);
+
+        // left side of bat
+        geometry_msgs::msg::Pose bat_L_part1;
+        bat_L_part1.position.x = -bat_x2_;
+        bat_L_part1.position.y = bat_y3_;
+        bat_L_part1.position.z = tooling_length_;
+        bat_L_part1.orientation.x = 0.0;
+        bat_L_part1.orientation.y = 0.0;
+        bat_L_part1.orientation.z = 0.0;
+        bat_L_part1.orientation.w = 1.0;
+        top_segment.poses.push_back(bat_L_part1);
+
+        geometry_msgs::msg::Pose bat_L_part2;
+        bat_L_part2.position.x = -bat_x2_;
+        bat_L_part2.position.y = bat_y2_;
+        bat_L_part2.position.z = tooling_length_;
+        bat_L_part2.orientation.x = 0.0;
+        bat_L_part2.orientation.y = 0.0;
+        bat_L_part2.orientation.z = 0.0;
+        bat_L_part2.orientation.w = 1.0;
+        top_segment.poses.push_back(bat_L_part2);
+
+        geometry_msgs::msg::Pose bat_L_part3;
+        bat_L_part3.position.x = -bat_x1_;
+        bat_L_part3.position.y = bat_y1_;
+        bat_L_part3.position.z = tooling_length_;
+        bat_L_part3.orientation.x = 0.0;
+        bat_L_part3.orientation.y = 0.0;
+        bat_L_part3.orientation.z = 0.0;
+        bat_L_part3.orientation.w = 1.0;
+        top_segment.poses.push_back(bat_L_part3);
+
+        geometry_msgs::msg::Pose bat_L_part4;
+        bat_L_part4.position.x = moon_x_axis_left_;
+        bat_R_part4.position.y = bat_y2_;
+        bat_L_part4.position.z = tooling_length_;
+        bat_L_part4.orientation.x = 0.0;
+        bat_L_part4.orientation.y = 0.0;
+        bat_L_part4.orientation.z = 0.0;
+        bat_L_part4.orientation.w = 1.0;
+        top_segment.poses.push_back(bat_L_part4);
 
         // Pose #5 - depart pumkin
         geometry_msgs::msg::Pose depart_moon;
         depart_moon.position.x = 0.0;
-        depart_moon.position.y = moon_y_axis_start_;
+        depart_moon.position.y = moon_x_axis_left_;
         depart_moon.position.z = 0.0;
         depart_moon.orientation.x = 0.0;
         depart_moon.orientation.y = 0.0;
         depart_moon.orientation.z = 0.0;
         depart_moon.orientation.w = 0.0;
-        moon_segment.poses.push_back(depart_moon);
+        top_segment.poses.push_back(depart_moon);
+
 
         // Plot the moon segment
-        RCLCPP_INFO(this->get_logger(), "Moon Done. Plotting now...");
-        plotPathSegments(moon_segment);
+        RCLCPP_INFO(this->get_logger(), "Top Done. Plotting now...");
+        plotPathSegments(top_segment);
 
         // Save moon segment to request
-        request_->path.push_back(moon_segment);
+        request_->path.push_back(top_segment);
 
         return false;
-        } // MahajanPathPlanner::makeMoonPath
+        } // MahajanPathPlanner::makeTopPath
 
     /*
     * Generate Star Path
     * */
-    bool makeStarPath()
+    bool makeBottomPath()
     {
         // Setup star segment pose array
-        auto star_segment = geometry_msgs::msg::PoseArray();
+        auto bottom_segment = geometry_msgs::msg::PoseArray();
 
         // Stuff Header
-        star_segment.header.frame_id = "pumpkin_face";
-        star_segment.header.stamp = this->now();
+        bottom_segment.header.frame_id = "pumpkin_face";
+        bottom_segment.header.stamp = this->now();
         
-        // Pose #6 - Aproach star part 1
-        geometry_msgs::msg::Pose approach_start_part1;
-        approach_start_part1.position.x = star_x_axis_start_;
-        approach_start_part1.position.y = 0.0;
-        approach_start_part1.position.z = 0.0;
-        approach_start_part1.orientation.x = 0.0;
-        approach_start_part1.orientation.y = 0.0;
-        approach_start_part1.orientation.z = 0.0;
-        approach_start_part1.orientation.w = 1.0;
-        star_segment.poses.push_back(approach_start_part1);
+        // Pose #6 - Aproach bottom part 1
+        geometry_msgs::msg::Pose approach_bottom_part1;
+        approach_bottom_part1.position.x = moon_x_axis_left_;
+        approach_bottom_part1.position.y = moon_y_offset_;
+        approach_bottom_part1.position.z = 0.0;
+        approach_bottom_part1.orientation.x = 0.0;
+        approach_bottom_part1.orientation.y = 0.0;
+        approach_bottom_part1.orientation.z = 0.0;
+        approach_bottom_part1.orientation.w = 1.0;
+        bottom_segment.poses.push_back(approach_bottom_part1);
 
         // Pose #7 - cut into pumkin
-        geometry_msgs::msg::Pose cut_star_part1;
-        cut_star_part1.position.x = star_x_axis_start_;
-        cut_star_part1.position.y = 0.0;
-        cut_star_part1.position.z = tooling_length_;
-        cut_star_part1.orientation.x = 0.0;
-        cut_star_part1.orientation.y = 0.0;
-        cut_star_part1.orientation.z = 0.0;
-        cut_star_part1.orientation.w = 1.0;
-        star_segment.poses.push_back(cut_star_part1);
+        geometry_msgs::msg::Pose cut_bottom_part1;
+        cut_bottom_part1.position.x = moon_x_axis_left_;
+        cut_bottom_part1.position.y = moon_y_offset_;
+        cut_bottom_part1.position.z = tooling_length_;
+        cut_bottom_part1.orientation.x = 0.0;
+        cut_bottom_part1.orientation.y = 0.0;
+        cut_bottom_part1.orientation.z = 0.0;
+        cut_bottom_part1.orientation.w = 1.0;
+        bottom_segment.poses.push_back(cut_bottom_part1);
+
+        for (double i = moon_x_axis_left_; i <= moon_x_axis_right_; i += tooling_radius_/2)
+        {
+            geometry_msgs::msg::Pose moon_part2;
+            moon_part2.position.x = i;
+            moon_part2.position.y = (-b_1_const_ * sqrt(pow(moon_radius_const_, 2) - pow(i, 2))) / moon_radius_const_;
+            moon_part2.position.z = tooling_length_;
+            moon_part2.orientation.x = 0.0;
+            moon_part2.orientation.y = 0.0;
+            moon_part2.orientation.z = 0.0;
+            moon_part2.orientation.w = 1.0;
+            bottom_segment.poses.push_back(moon_part2);
+        }
 
         // Pose #8 - star part 1
-        geometry_msgs::msg::Pose star_part1;
-        star_part1.position.x = star_x_axis_finish_;
-        star_part1.position.y = 0.0;
-        star_part1.position.z = tooling_length_;
-        star_part1.orientation.x = 0.0;
-        star_part1.orientation.y = 0.0;
-        star_part1.orientation.z = 0.0;
-        star_part1.orientation.w = 1.0;
-        star_segment.poses.push_back(star_part1);
+        geometry_msgs::msg::Pose bat_bottom1;
+        bat_bottom1.position.x = 0.0;
+        bat_bottom1.position.y = -0.05;
+        bat_bottom1.position.z = tooling_length_;
+        bat_bottom1.orientation.x = 0.0;
+        bat_bottom1.orientation.y = 0.0;
+        bat_bottom1.orientation.z = 0.0;
+        bat_bottom1.orientation.w = 1.0;
+        bottom_segment.poses.push_back(bat_bottom1);
 
-        // Pose #9 - depart pumpkin
-        geometry_msgs::msg::Pose depart_star_part1;
-        depart_star_part1.position.x = star_x_axis_finish_;
-        depart_star_part1.position.y = 0.0;
-        depart_star_part1.position.z = 0.0;
-        depart_star_part1.orientation.x = 0.0;
-        depart_star_part1.orientation.y = 0.0;
-        depart_star_part1.orientation.z = 0.0;
-        depart_star_part1.orientation.w = 1.0;
-        star_segment.poses.push_back(depart_star_part1);
-
-        // Pose #11 - Aproach star part 2
-        geometry_msgs::msg::Pose approach_star_part2;
-        approach_star_part2.position.x = star_x_line_;
-        approach_star_part2.position.y = star_y_axis_start_;
-        approach_star_part2.position.z = 0.0;
-        approach_star_part2.orientation.x = 0.0;
-        approach_star_part2.orientation.y = 0.0;
-        approach_star_part2.orientation.z = 0.0;
-        approach_star_part2.orientation.w = 1.0;
-        star_segment.poses.push_back(approach_star_part2);
-
-        // Pose #12 - cut into pumkin
-        geometry_msgs::msg::Pose cut_star_part2;
-        cut_star_part2.position.x = star_x_line_;
-        cut_star_part2.position.y = star_y_axis_start_;
-        cut_star_part2.position.z = tooling_length_;
-        cut_star_part2.orientation.x = 0.0;
-        cut_star_part2.orientation.y = 0.0;
-        cut_star_part2.orientation.z = 0.0;
-        cut_star_part2.orientation.w = 1.0;
-        star_segment.poses.push_back(cut_star_part2);
-
-        // Pose #13 - star part 1
-        geometry_msgs::msg::Pose star_part2;
-        star_part2.position.x = star_x_line_;
-        star_part2.position.y = star_y_axis_end_;
-        star_part2.position.z = tooling_length_;
-        star_part2.orientation.x = 0.0;
-        star_part2.orientation.y = 0.0;
-        star_part2.orientation.z = 0.0;
-        star_part2.orientation.w = 1.0;
-        star_segment.poses.push_back(star_part2);
+        geometry_msgs::msg::Pose bat_bottom2;
+        bat_bottom2.position.x = moon_x_axis_left_;
+        bat_bottom2.position.y = -0.01;
+        bat_bottom2.position.z = tooling_length_;
+        bat_bottom2.orientation.x = 0.0;
+        bat_bottom2.orientation.y = 0.0;
+        bat_bottom2.orientation.z = 0.0;
+        bat_bottom2.orientation.w = 1.0;
+        bottom_segment.poses.push_back(bat_bottom2);
 
         // Pose #14 - depart pumpkin
         geometry_msgs::msg::Pose depart_star_part2;
-        depart_star_part2.position.x = star_x_line_;
-        depart_star_part2.position.y = star_y_axis_end_;
+        depart_star_part2.position.x = moon_x_axis_left_;
+        depart_star_part2.position.y = -0.01;
         depart_star_part2.position.z = 0.0;
         depart_star_part2.orientation.x = 0.0;
         depart_star_part2.orientation.y = 0.0;
         depart_star_part2.orientation.z = 0.0;
         depart_star_part2.orientation.w = 1.0;
-        star_segment.poses.push_back(depart_star_part2);
+        bottom_segment.poses.push_back(depart_star_part2);
 
         // Plot the star segment
-        RCLCPP_INFO(this->get_logger(), "Star Done. Plotting now...");
-        plotPathSegments(star_segment);
+        RCLCPP_INFO(this->get_logger(), "Bottom Done. Plotting now...");
+        plotPathSegments(bottom_segment);
 
         // Save star segment to request
-        request_->path.push_back(star_segment);
+        request_->path.push_back(bottom_segment);
 
         return false;
-    } // MahajanPathPlanner::makeStarPath
+    } // MahajanPathPlanner::makeBottomPath
  
     /*
     * Plot the entire tool path as one PoseArray
@@ -429,17 +481,20 @@ private:
 
     // Define Path Parameters
     double tooling_length_;
-    double moon_y_axis_start_;
-    double moon_y_axis_end_;
+    double moon_x_axis_left_;
+    double moon_x_axis_right_;
     double b_1_const_;
     double b_2_const_; 
     double moon_radius_const_;
-    double star_x_axis_start_;
-    double star_x_axis_finish_;
-    double star_x_line_;
-    double star_y_axis_start_;
-    double star_y_axis_end_;
     double tooling_radius_;
+    double pumpkin_radius_;
+    double moon_y_offset_;
+    double bat_x1_;
+    double bat_y1_;
+    double bat_x2_;     
+    double bat_y2_;
+    double bat_y3_;
+    double bat_y4_;
 
     // Output YAML Filename
     std::string output_toolpath_yaml_filename;
@@ -462,8 +517,8 @@ int main(int argc, char **argv)
     rclcpp::sleep_for(std::chrono::seconds(1));
 
     // Generate Paths (in desired order)
-    node->makeMoonPath();    
-    node->makeStarPath();
+    node->makeTopPath();    
+    node->makeBottomPath();
 
     // Save Tool Path to YAML
     node->exportToolPathToYAML();
